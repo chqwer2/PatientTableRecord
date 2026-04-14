@@ -50,7 +50,7 @@ from pathlib import Path
 import pandas as pd
 
 FUSED_PATH  = Path("/Users/haochen/Desktop/PatientTables/output/analysis/fused.csv")
-OUTPUT_PATH = Path("/Users/haochen/Desktop/PatientTables/output/analysis/fused_filled.csv")
+OUTPUT_PATH = Path("/Users/haochen/Desktop/PatientTables/output/analysis/main_fused_filled.csv")
 OUT_DIR     = FUSED_PATH.parent
 
 t0 = time.perf_counter()

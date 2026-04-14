@@ -1,37 +1,57 @@
+# PatientTables
 
+Annual health-check × stroke-registry data pipeline.
 
-Main.py does
+Reads raw Excel/CSV files, assigns unique patient IDs across all years, processes lab results, classifies ECG/X-ray risk, fills missing values, and produces analysis-ready fused datasets.
 
-  Step 1 — Read the 300MB CSVs efficiently                                                          
-  Reads only the 4 key columns (name, gender, age, exam date) from each GBK-encoded CSV in chunks of
-   50,000 rows, converts to UTF-8 and saves small temp files.                                       
-                                                                                                    
-  Step 2 — Convert the xlsx                                 
-  Reads the stroke registry Excel file and saves it as CSV.                                         
-                                                                                                    
-  Step 3 — Build DuckDB views                                                                       
-  Creates in-memory query-able views for all 4 sources. Also normalises the gender column — the xlsx
-   stores '1 男' while CSVs store '男', so it strips the number so joins work.                      
-   
-  Step 4 — Count records                                                                            
-  Prints row counts and unique (name+gender) counts per source.
-                                                                                                    
-  Step 5 — Build the presence matrix ← the main output                                              
-  For every unique patient across all 4 files, creates one row showing:                             
-  - in_stroke / in_2022 / in_2023 / in_2024 — Y or N                                                
-  - Their ages in each year                                                                         
-  - age_consistent — whether ages make sense for the same person (e.g. age 50 in 2022 → expect 51 in
-   2023 ±1)                                                                                         
-                                                                                                    
-  Step 6 — Full intersection
-  Filters to patients who appear in all 4 sources with consistent ages → intersection_all4.csv      
-                                                                                                    
-  Step 7 — Missing records — 3 output files:                                                        
-  - stroke_missing_from_csvs.csv — stroke patients absent from ≥1 annual health check               
-  - csv_not_in_stroke_registry.csv — health check patients not in stroke registry                   
-  - age_mismatch_warnings.csv — same name+gender but ages don't match → likely two different people
-                                                                                                    
-  Step 8 — Per-year breakdown                               
-  Prints how many stroke patients were found/missing in each of 2022, 2023, 2024.       
-  
+---
 
+## Quick start
+
+```bash
+bash 01_install.sh          # install Python dependencies (first time only)
+export ANTHROPIC_API_KEY=sk-ant-...
+bash 02_run.sh              # run the full 6-step pipeline
+python visit_stats.py       # generate visit statistics (also called by 02_run.sh)
+```
+
+Input files must sit in `/Users/haochen/Desktop/PatientTables/`:
+
+| File | Contents |
+|------|----------|
+| `2018.xlsx` | Annual health-check data, 2018 cohort |
+| `2022-2024.xlsx` | Stroke registry (sheet: 脑卒中) |
+| `2022.csv` / `2023.csv` / `2024.csv` | Annual health-check data, 2022–2024 cohorts (GBK encoded) |
+
+All output lands in `/Users/haochen/Desktop/PatientTables/output/`.
+
+---
+
+## Pipeline steps
+
+| Step | Script | What it does |
+|------|--------|--------------|
+| 1 | `main_2018.py` | Build golden patient reference from 2018.xlsx + stroke registry |
+| 2 | `main.py` | Match 2022/2023/2024 records against golden IDs |
+| 3 | `main2.py` | Lab triplet processing (Claude API) + all feature transforms |
+| 4 | `step2_fuse_clean_files.py` | Fuse all clean files into one dataset |
+| 5 | `step3_risk_classify.py` | Classify ECG & chest X-ray text into risk scores |
+| 6 | `step4_fill_missing.py` | Fill NaN sentinels + encode categorical columns |
+| — | `visit_stats.py` | Compute visit/disease statistics on the fused dataset |
+
+---
+
+## Documentation
+
+Detailed documentation for each step lives in [`docs/`](docs/):
+
+- [`docs/01_overview.md`](docs/01_overview.md) — Data flow diagram and directory layout
+- [`docs/02_input_data.md`](docs/02_input_data.md) — Input file schemas and encoding quirks
+- [`docs/03_step1_golden_reference.md`](docs/03_step1_golden_reference.md) — `main_2018.py`: building the golden patient reference
+- [`docs/04_step2_id_assignment.md`](docs/04_step2_id_assignment.md) — `main.py`: matching 2022/23/24 against golden IDs
+- [`docs/05_step3_lab_processing.md`](docs/05_step3_lab_processing.md) — `main2.py`: lab triplet processing and feature transforms
+- [`docs/06_step4_fuse.md`](docs/06_step4_fuse.md) — `step2_fuse_clean_files.py`: fusing and analysing
+- [`docs/07_step5_risk_classify.md`](docs/07_step5_risk_classify.md) — `step3_risk_classify.py`: ECG/X-ray risk classification
+- [`docs/08_step6_fill_missing.md`](docs/08_step6_fill_missing.md) — `step4_fill_missing.py`: filling missing values
+- [`docs/09_output_files.md`](docs/09_output_files.md) — All output files, columns, and formats
+- [`docs/10_visit_stats.md`](docs/10_visit_stats.md) — `visit_stats.py`: visit statistics tables
